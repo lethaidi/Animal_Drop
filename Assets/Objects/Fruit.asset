@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FruitData
   index: 0
   fruitName: 1
-  sprite: {fileID: 2245821105732021224, guid: 5ee15edd370459745b7ef1d1cec20b89, type: 3}
+  sprite: {fileID: 5737686029436099600, guid: 7794fbde3a19db14fa0ea3a2d7baa7bc, type: 3}
   scoreValue: 2
-  spawnScale: 0.4
+  spawnScale: 1
+  radiusCollider: 0

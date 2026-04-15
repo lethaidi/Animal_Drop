@@ -8,86 +8,69 @@ public class AudioManager : MonoBehaviour
     public AudioMixer audioMixer;
 
     [Header("UI")]
-    public Slider musicSlider;
-    public Slider sfxSlider;
+    public Toggle musicToggle;
+    public Toggle sfxToggle;
 
     // PlayerPrefs keys
-    const string MUSIC_KEY = "MusicVolume";
-    const string SFX_KEY = "SFXVolume";
-
-    // Volume range (dB)
-    const float MIN_DB = -70f;
-    const float MUSIC_MAX_DB = 0f;
-    const float SFX_MAX_DB = 0f;
+    const string MUSIC_KEY = "MusicEnabled";
+    const string SFX_KEY = "SFXEnabled";
 
     void Awake()
     {
-        // Khởi tạo giá trị mặc định nếu lần đầu chơi
+        // Giá trị mặc định: bật âm
         if (!PlayerPrefs.HasKey(MUSIC_KEY))
-            PlayerPrefs.SetFloat(MUSIC_KEY, 0.5f);
+            PlayerPrefs.SetInt(MUSIC_KEY, 1);
 
         if (!PlayerPrefs.HasKey(SFX_KEY))
-            PlayerPrefs.SetFloat(SFX_KEY, 0.5f);
+            PlayerPrefs.SetInt(SFX_KEY, 1);
 
         PlayerPrefs.Save();
     }
 
     void Start()
     {
-        // Load giá trị từ PlayerPrefs
-        float musicVol = PlayerPrefs.GetFloat(MUSIC_KEY);
-        float sfxVol = PlayerPrefs.GetFloat(SFX_KEY);
+        // Load trạng thái
+        bool musicOn = PlayerPrefs.GetInt(MUSIC_KEY) == 1;
+        bool sfxOn = PlayerPrefs.GetInt(SFX_KEY) == 1;
 
-        // Gán giá trị cho UI Slider
-        musicSlider.value = musicVol;
-        sfxSlider.value = sfxVol;
+        // Gán cho Toggle
+        musicToggle.isOn = musicOn;
+        sfxToggle.isOn = sfxOn;
 
-        // Áp dụng âm thanh ngay khi bắt đầu
-        ApplyMusic();
-        ApplySFX();
+        // Áp dụng ngay
+        ApplyMusic(musicOn);
+        ApplySFX(sfxOn);
     }
 
     // ================= MUSIC =================
-    public void SetMusic()
+    public void SetMusic(bool isOn)
     {
-        PlayerPrefs.SetFloat(MUSIC_KEY, musicSlider.value);
+        PlayerPrefs.SetInt(MUSIC_KEY, isOn ? 1 : 0);
         PlayerPrefs.Save();
-        ApplyMusic();
+        ApplyMusic(isOn);
     }
 
-    void ApplyMusic()
+    void ApplyMusic(bool isOn)
     {
-        // Nếu kéo slider về 0, tắt hẳn âm thanh (-80dB)
-        if (musicSlider.value <= 0.01f)
-        {
-            audioMixer.SetFloat("MusicVolume", -80f);
-        }
+        if (isOn)
+            audioMixer.SetFloat("MusicVolume", -20f);   // bật
         else
-        {
-            float db = Mathf.Lerp(MIN_DB, MUSIC_MAX_DB, musicSlider.value);
-            audioMixer.SetFloat("MusicVolume", db);
-        }
+            audioMixer.SetFloat("MusicVolume", -80f); // tắt
     }
 
     // ================= SFX =================
-    public void SetSFX()
+    public void SetSFX(bool isOn)
     {
-        PlayerPrefs.SetFloat(SFX_KEY, sfxSlider.value);
+        PlayerPrefs.SetInt(SFX_KEY, isOn ? 1 : 0);
         PlayerPrefs.Save();
-        ApplySFX();
+        ApplySFX(isOn);
     }
 
-    void ApplySFX()
+    void ApplySFX(bool isOn)
     {
-        // Nếu kéo slider về 0, tắt hẳn âm thanh (-80dB)
-        if (sfxSlider.value <= 0.01f)
-        {
-            audioMixer.SetFloat("SFXVolume", -80f);
-        }
+        if (isOn)
+            audioMixer.SetFloat("SFXVolume", -10f);   // bật
         else
-        {
-            float db = Mathf.Lerp(MIN_DB, SFX_MAX_DB, sfxSlider.value);
-            audioMixer.SetFloat("SFXVolume", db);
-        }
+            audioMixer.SetFloat("SFXVolume", -80f); // tắt
     }
 }

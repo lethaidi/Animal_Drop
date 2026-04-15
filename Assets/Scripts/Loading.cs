@@ -11,7 +11,7 @@ public class Loading : MonoBehaviour
 
     public AudioSource audioSource;
 
-    void Start()
+    void OnEnable()
     {
         if (audioSource != null)
         {

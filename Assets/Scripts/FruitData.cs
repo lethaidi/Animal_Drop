@@ -8,4 +8,5 @@ public class FruitData : ScriptableObject
     public Sprite sprite; 
     public int scoreValue;
     public float spawnScale;
+    public float radiusCollider;
 }

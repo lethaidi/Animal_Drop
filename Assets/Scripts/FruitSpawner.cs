@@ -1,27 +1,41 @@
 ﻿using UnityEngine;
 using System.Collections;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
+using System.Collections.Generic;
 
 public class FruitSpawner : MonoBehaviour
 {
+    [Header("Spawn Rate")]
+    public float[] spawnWeights; // tỉ lệ tương ứng với fruitPrefabs
+
     [Header("Settings")]
     public GameObject[] fruitPrefabs; // Kéo 5 loại quả nhỏ nhất vào đây
     public float spawnDelay = 1.0f;
     public float boxWidth = 2.5f;    // Độ rộng của miệng hộp để giới hạn quả
 
-    private GameObject currentFruit;
-    private bool canSpawn = true, isPause = false;
+    public GameObject arrow;
+    public GameObject currentFruit;
+    public bool canSpawn = true, isPause = false;
 
     [Header("Next Fruit Preview")]
     private int fruitIndex = 0;
     public Image nextFruitPreview;
     private GameObject nextFruit;
+    public Sprite[] fruitSprites; 
 
     [Header("Check Condition")]
     public bool canInteract = true;
-    public Collider2D col;
+
+    [Header("UI Block Areas")]
+    public List<RectTransform> uiBlocks; 
 
     public Loading loading;
+
+    private int currentIndex;
+    private int nextIndex;
+
+    public AudioSource audioSource;
 
     void Update()
     {
@@ -46,6 +60,11 @@ public class FruitSpawner : MonoBehaviour
             if (Input.GetMouseButtonUp(0)) // Khi thả chuột
             {
                 DropFruit();
+
+                if (audioSource != null)
+                {
+                    audioSource.Play();
+                }
             }
         }
     }
@@ -60,6 +79,11 @@ public class FruitSpawner : MonoBehaviour
 
         // Cập nhật vị trí quả (chỉ thay đổi X, giữ nguyên Y của Spawner)
         currentFruit.transform.position = new Vector3(xPos, transform.position.y, 0);
+        // Cập nhật vị trí mũi tên
+        if (arrow != null)
+        {
+            arrow.transform.position = new Vector3(xPos, arrow.transform.position.y, 0);
+        }
     }
 
     IEnumerator SpawnNewFruit()
@@ -67,20 +91,20 @@ public class FruitSpawner : MonoBehaviour
         canSpawn = false;
         yield return new WaitForSeconds(spawnDelay);
 
-        currentFruit = Instantiate(fruitPrefabs[fruitIndex], transform.position, Quaternion.identity);
+        arrow.SetActive(true);
 
-        // QUAN TRỌNG: Tạm thời tắt vật lý để quả không rơi ngay
+        currentIndex = nextIndex;
+
+        currentFruit = Instantiate(fruitPrefabs[currentIndex], transform.position, Quaternion.identity);
+
         Rigidbody2D rb = currentFruit.GetComponent<Rigidbody2D>();
         rb.simulated = false;
 
         canSpawn = true;
 
-        // Cập nhật hình ảnh quả tiếp theo trong preview
-        if (nextFruitPreview != null)
-        {
-            fruitIndex = Random.Range(0, fruitPrefabs.Length);
-            nextFruitPreview.sprite = fruitPrefabs[fruitIndex].GetComponent<SpriteRenderer>().sprite;
-        }
+        // random next
+        nextIndex = GetRandomFruitIndex();
+        nextFruitPreview.sprite = fruitSprites[nextIndex];
     }
 
     void DropFruit()
@@ -91,6 +115,8 @@ public class FruitSpawner : MonoBehaviour
         fruit.isDropped = true;
 
         currentFruit = null;
+
+        arrow.SetActive(false);
     }
 
     public void Pause()
@@ -111,15 +137,71 @@ public class FruitSpawner : MonoBehaviour
 
     public void CheckMouse()
     {
-        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        if (uiBlocks == null || uiBlocks.Count == 0) return;
 
-        if (col == Physics2D.OverlapPoint(mousePos))
+        Vector2 mousePos = Input.mousePosition;
+        canInteract = true;
+
+        foreach (RectTransform rect in uiBlocks)
         {
-            canInteract = false;
+            if (RectTransformUtility.RectangleContainsScreenPoint(rect, mousePos))
+            {
+                canInteract = false;
+                return;
+            }
         }
-        else
+    }
+
+    public void Change()
+    {
+        isPause = true;
+
+        StartCoroutine(WaitChange());
+    }
+
+    IEnumerator WaitChange()
+    {
+        yield return new WaitForSeconds(5f);
+
+        if (currentFruit != null)
         {
-            canInteract = true;
+            Destroy(currentFruit);
         }
+
+        int oldIndex = currentIndex;
+
+        do
+        {
+            currentIndex = Random.Range(0, fruitPrefabs.Length);
+        }
+        while (currentIndex == oldIndex);
+
+        currentFruit = Instantiate(fruitPrefabs[currentIndex], transform.position, Quaternion.identity);
+
+        Rigidbody2D rb = currentFruit.GetComponent<Rigidbody2D>();
+        rb.simulated = false;
+
+        isPause = false;
+    }
+
+    int GetRandomFruitIndex()
+    {
+        float totalWeight = 0f;
+
+        foreach (float w in spawnWeights)
+            totalWeight += w;
+
+        float randomValue = Random.Range(0, totalWeight);
+
+        float current = 0f;
+
+        for (int i = 0; i < spawnWeights.Length; i++)
+        {
+            current += spawnWeights[i];
+            if (randomValue <= current)
+                return i;
+        }
+
+        return 0; // fallback
     }
 }

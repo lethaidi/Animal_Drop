@@ -10,40 +10,58 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance { get; private set; }
 
     [Header("Fruit Data")]
-    public List<FruitData> allFruitData; 
-    public GameObject fruitPrefab; 
+    public List<FruitData> allFruitData;
+    public GameObject[] fruitPrefabs;
 
     [Header("Game Info")]
     public int currentScore = 0;
+    public int highestScore = 0;
 
     [Header("UI Elements")]
     public TextMeshProUGUI scoreText, scoreTextLosePanel, highestScoreText;
 
     [Header("Lose Condition")]
     public bool isGameOver = false;
-    public GameObject losePanel; 
-    
+    public GameObject losePanel;
+
     [Header("Audio")]
     public AudioSource effectMusic;
+    public AudioSource shakeSound;
 
     [Header("Shake Effect")]
     public float shakeForce = 5f;
     public float duration = 0.5f;
-    private int shakeCountMax = 20, shakeCountCurrent = 0;
+    private int shakeCountMax = 50, shakeCountCurrent = 0;
     public TextMeshProUGUI countText;
+    public GameObject collectShakePanel;
+
+    // ===== CAMERA SHAKE =====
+    [Header("Camera Shake")]
+    public Transform cam;
+    private Vector3 camOriginalPos;
+
+    public FruitSpawner fruitSpawner;
 
     private void Awake()
     {
-        // Khởi tạo Singleton
+        // Singleton
         if (Instance == null) { Instance = this; }
-        else { Destroy(gameObject); }
 
         ShowScore();
 
         shakeCountCurrent = shakeCountMax;
         if (countText != null)
         {
-            countText.text = shakeCountCurrent.ToString() + "/" + shakeCountMax.ToString();
+            countText.text = shakeCountCurrent + "/" + shakeCountMax;
+        }
+
+        // Load high score
+        highestScore = PlayerPrefs.GetInt("HighestScore", 0);
+
+        // Lưu vị trí camera
+        if (cam != null)
+        {
+            camOriginalPos = cam.localPosition;
         }
     }
 
@@ -55,10 +73,9 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // Hàm này được gọi từ script Fruit.cs khi 2 quả chạm nhau
+    // Merge fruit
     public void LevelUpFruit(int currentIndex, Vector3 spawnPosition)
     {
-        // Phát âm thanh khi quả được nâng cấp
         if (effectMusic != null)
         {
             effectMusic.Play();
@@ -66,37 +83,25 @@ public class GameManager : MonoBehaviour
 
         int nextIndex = currentIndex + 1;
 
-        // Cộng điểm
         currentScore += allFruitData[currentIndex].scoreValue;
         Debug.Log("Score: " + currentScore);
         ShowScore();
 
-        // Nếu đã là quả to nhất (Dưa hấu) thì không nâng cấp nữa
         if (nextIndex >= allFruitData.Count)
         {
-            Debug.Log("Bạn đã đạt đến cấp độ cao nhất!");
+            Debug.Log("Max level reached!");
             return;
         }
 
-        // Tạo quả mới
         SpawnFruit(nextIndex, spawnPosition);
     }
 
     public void SpawnFruit(int index, Vector3 position)
     {
-        FruitData data = allFruitData[index];
-        GameObject newFruit = Instantiate(fruitPrefab, position, Quaternion.identity);
+        GameObject newFruit = Instantiate(fruitPrefabs[index], position, Quaternion.identity);
 
-        // Cập nhật dữ liệu cho quả mới tạo
-        Fruit fruitScript = newFruit.GetComponent<Fruit>();
-        fruitScript.data = data;
-
-        // Cập nhật hình ảnh và kích thước dựa trên Data
-        newFruit.GetComponent<SpriteRenderer>().sprite = data.sprite; // Giả sử trong FruitData có biến sprite
-        newFruit.transform.localScale = Vector3.one * data.spawnScale;
-
-        // Đảm bảo quả mới sinh ra có vật lý ngay
         newFruit.GetComponent<Rigidbody2D>().simulated = true;
+
         Fruit fruit = newFruit.GetComponent<Fruit>();
         fruit.isDropped = true;
     }
@@ -120,24 +125,24 @@ public class GameManager : MonoBehaviour
             scoreTextLosePanel.text = currentScore.ToString();
         }
 
-        // Cập nhật điểm cao nếu cần
-        int highestScore = PlayerPrefs.GetInt("HighestScore", 0);
+        highestScore = PlayerPrefs.GetInt("HighestScore", 0);
         if (currentScore > highestScore)
         {
             PlayerPrefs.SetInt("HighestScore", currentScore);
             highestScore = currentScore;
         }
-        // Hiển thị điểm cao nhất
+
         if (highestScoreText != null)
         {
             highestScoreText.text = highestScore.ToString();
         }
 
-        // Hiển thị lose panel
         if (losePanel != null)
         {
-            losePanel.gameObject.SetActive(true);
+            losePanel.SetActive(true);
         }
+
+        RateScore.Instance.Rate();
     }
 
     public void LoadScene()
@@ -150,17 +155,28 @@ public class GameManager : MonoBehaviour
         Application.Quit();
     }
 
-    // Shake 
+    // ===== SHAKE =====
     public void Shake()
     {
-        if (shakeCountCurrent == 0) return;
-        StartCoroutine(DoShake());
+        if (shakeCountCurrent == 0)
+        {
+            collectShakePanel.SetActive(true);
+            fruitSpawner.isPause = true;
+            return;
+        }
+
+        if (shakeSound != null)
+        {
+            shakeSound.Play();
+        }
 
         shakeCountCurrent--;
+
         if (countText != null)
         {
-            countText.text = shakeCountCurrent.ToString() + "/" + shakeCountMax.ToString();
+            countText.text = shakeCountCurrent + "/" + shakeCountMax;
         }
+        StartCoroutine(DoShake());
     }
 
     IEnumerator DoShake()
@@ -169,6 +185,7 @@ public class GameManager : MonoBehaviour
 
         while (time < duration)
         {
+            // Rung trái
             Fruit[] all = FindObjectsOfType<Fruit>();
 
             foreach (var rb in all)
@@ -182,12 +199,51 @@ public class GameManager : MonoBehaviour
                 float horizontal = Random.Range(-0.4f, 0.4f);
                 float vertical = Random.Range(0.08f, 0.1f);
 
-                Vector2 force = new Vector2(horizontal, vertical);
-                rid.AddForce(force * shakeForce, ForceMode2D.Impulse);
+                rid.AddForce(new Vector2(horizontal, vertical) * shakeForce, ForceMode2D.Impulse);
+            }
+
+            // Rung camera (giảm dần)
+            if (cam != null)
+            {
+                float strength = Mathf.Lerp(0.2f, 0f, time / duration);
+                float shakeX = Random.Range(-strength, strength);
+                float shakeY = Random.Range(-strength, strength);
+
+                cam.localPosition = camOriginalPos + new Vector3(shakeX, shakeY, 0);
             }
 
             time += Time.deltaTime;
             yield return null;
         }
+
+        // Reset camera
+        if (cam != null)
+        {
+            cam.localPosition = camOriginalPos;
+        }
+
+        if (shakeCountCurrent == 0)
+        {
+            collectShakePanel.SetActive(true);
+            fruitSpawner.isPause = true;
+        }
+    }
+
+    public void MoreShake()
+    {
+        StartCoroutine(WaitPlus());
+    }
+
+    IEnumerator WaitPlus()
+    {
+        yield return new WaitForSeconds(5f);
+
+        shakeCountCurrent = shakeCountMax;
+        if (countText != null)
+        {
+            countText.text = shakeCountCurrent + "/" + shakeCountMax;
+        }
+
+        fruitSpawner.isPause = false;
     }
 }

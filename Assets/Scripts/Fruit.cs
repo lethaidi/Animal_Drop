@@ -20,7 +20,24 @@ public class Fruit : MonoBehaviour
 
                 // Gọi Manager để tạo quả mới ở vị trí giữa 2 quả cũ
                 Vector3 spawnPos = (transform.position + collision.transform.position) / 2;
-                GameManager.Instance.LevelUpFruit(data.index, spawnPos);
+                // Tìm GameManager và gọi phương thức LevelUpFruit
+                GameManager[] managers = FindObjectsOfType<GameManager>(true);
+
+                GameManager activeManager = null;
+
+                foreach (var m in managers)
+                {
+                    if (m.gameObject.activeInHierarchy)
+                    {
+                        activeManager = m;
+                        break;
+                    }
+                }
+
+                if (activeManager != null)
+                {
+                    activeManager.LevelUpFruit(data.index, spawnPos);
+                }
 
                 Destroy(gameObject);
                 Destroy(collision.gameObject);
@@ -32,7 +49,23 @@ public class Fruit : MonoBehaviour
     {
         if (other.CompareTag("OutZone"))
         {
-            GameManager.Instance.LoseGame();
+            GameManager[] managers = FindObjectsOfType<GameManager>(true);
+
+            GameManager activeManager = null;
+
+            foreach (var m in managers)
+            {
+                if (m.gameObject.activeInHierarchy)
+                {
+                    activeManager = m;
+                    break;
+                }
+            }
+
+            if (activeManager != null)
+            {
+                activeManager.LoseGame();
+            }
         }
     }
 }
